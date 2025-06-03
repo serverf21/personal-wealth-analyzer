@@ -1,16 +1,20 @@
-# To host the server -
+# Personal Wealth Analyzer
 
-python3 -m venv venv
-source venv/bin/activate
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+An AI-powered personal finance platform that analyzes your spending patterns, optimizes investment portfolios, and provides intelligent recommendations to maximize your wealth growth.
 
-# To host the client -
+## To host the server -
+
+- python3 -m venv venv
+- source venv/bin/activate
+- uvicorn main:app --reload --host 0.0.0.0 --port 8000
+
+## To host the client -
 
 npm run start
 
-## Features to be integrated
+# Features to be integrated
 
-# Core Financial Management Components:
+## Core Financial Management Components:
 
 1. Account Statement Analyzer (By taking PDF statement as input and making charts, using AI to analyze the necessary purchases and cuts required)
 2. Investments Analyzer - Analyzes the net worth distribution among asset classes like equities (stocks and MFs), gold, real estate, FDs.
@@ -20,7 +24,7 @@ npm run start
 6. Goal-Based Financial Planning - Allow users to set specific financial goals (emergency fund, home down payment, retirement) with target amounts and timelines. Show progress tracking and required monthly savings to meet goals.
 7. Tax Optimization Center - Analyze tax-saving opportunities, track tax-deductible expenses, suggest optimal investment timing for tax efficiency, and estimate annual tax liability.
 
-# Advanced Analysis Features:
+## Advanced Analysis Features:
 
 8. Risk Assessment Tool - Evaluate overall portfolio risk tolerance, concentration risk across investments, and suggest rebalancing strategies.
 9. Performance Analytics - Track investment returns, benchmark against market indices, calculate risk-adjusted returns, and identify best/worst performing assets.
@@ -29,7 +33,7 @@ npm run start
 12. Insurance Coverage Analyzer - Assess adequacy of life, health, property insurance coverage based on current net worth and dependents.
 13. Retirement Planning Calculator - Project retirement corpus needs, analyze current savings rate adequacy, and suggest course corrections.
 
-# Additional Utility Components:
+## Additional Utility Components:
 
 14. Bill Management - Track recurring bills, predict monthly expenses, and identify subscription services that might be cancelled.
 15. Credit Score Monitoring - If possible to integrate, track credit score changes and factors affecting it.
