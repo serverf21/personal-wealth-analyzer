@@ -1,0 +1,32 @@
+# Editor-specific files
+.vscode/
+
+# Node.js dependencies
+client/node_modules/
+
+# Python virtual environment
+server/venv/
+
+# Python cache files
+server/__pycache__/
+
+# Build artifacts
+dist/
+build/
+
+# Expo-specific files
+.expo/
+.expo-shared/
+
+# Log files
+*.log
+
+# Environment files
+.env
+
+# Temporary files
+*.tmp
+*.swp
+
+# System files
+.DS_Store
