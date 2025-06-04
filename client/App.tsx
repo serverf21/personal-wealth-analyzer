@@ -1,12 +1,10 @@
-import React, { JSX, useEffect, useState } from "react";
+import React, { JSX, useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView } from "react-native";
-import { Button, Platform } from "react-native";
-import * as DocumentPicker from "expo-document-picker";
 import { styles } from "./styles";
 import { MenuItem, menuItems } from "./constants";
 import { DashboardId } from "./types/types";
-import AccountAnalyzer from "./components/account-analyzer/account-analyzer";
-import Header from "./components/header/header";
+import AccountAnalyzer from "./dashboards/account-analyzer/account-analyzer";
+import Header from "./dashboards/header/header";
 
 const PersonalWealthAnalyzer: React.FC = () => {
   const [selectedDashboard, setSelectedDashboard] =

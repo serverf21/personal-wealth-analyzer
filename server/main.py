@@ -16,8 +16,12 @@ app.add_middleware(
 
 @app.post("/upload-pdf")
 async def upload_pdf(file: UploadFile = File(...)):
-    content = ""
+    tables = []
     with pdfplumber.open(io.BytesIO(await file.read())) as pdf:
-        for page in pdf.pages:
-            content += page.extract_text() or ""
-    return {"text": content[:1000]}  # return preview
+        print('pages length', len(pdf.pages))
+        for i in range(len(pdf.pages)):
+            page = pdf.pages[i]
+            page_tables = page.extract_tables()
+            for table in page_tables:
+                tables.extend(table) 
+    return {"tables": tables}  # return as JSON array
