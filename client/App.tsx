@@ -1,17 +1,39 @@
 import React, { JSX, useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView } from "react-native";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  Animated,
+} from "react-native";
 import { styles } from "./styles";
 import { MenuItem, menuItems } from "./constants";
 import { DashboardId } from "./types/types";
 import AccountAnalyzer from "./dashboards/account-analyzer/account-analyzer";
 import Header from "./dashboards/header/header";
 
+const SIDEBAR_WIDTH = 300;
+
 const PersonalWealthAnalyzer: React.FC = () => {
   const [selectedDashboard, setSelectedDashboard] =
     useState<DashboardId>("account-analyzer");
+  const [isSidebarOpen, setSidebarOpen] = useState(true);
+  const sidebarWidth = React.useRef(new Animated.Value(1)).current;
+
+  const toggleSidebar = () => {
+    Animated.timing(sidebarWidth, {
+      toValue: isSidebarOpen ? 0 : 1,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+    setSidebarOpen(!isSidebarOpen);
+  };
 
   const handleMenuItemPress = (dashboardId: string): void => {
     setSelectedDashboard(dashboardId as DashboardId);
+    if (!isSidebarOpen) {
+      toggleSidebar();
+    }
   };
 
   const renderContent = (): JSX.Element => {
@@ -42,8 +64,24 @@ const PersonalWealthAnalyzer: React.FC = () => {
 
       {/* Main Content Area */}
       <View style={styles.mainContent}>
-        {/* Left Sidebar Menu */}
-        <View style={styles.sidebar}>
+        <Animated.View
+          style={[
+            styles.sidebar,
+            {
+              position: "absolute",
+              width: SIDEBAR_WIDTH,
+              transform: [
+                {
+                  translateX: sidebarWidth.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-SIDEBAR_WIDTH, 0],
+                  }),
+                },
+              ],
+              zIndex: 100,
+            },
+          ]}
+        >
           <Text style={styles.sidebarTitle}>Dashboards</Text>
           <ScrollView style={styles.menuContainer}>
             {menuItems.map((item: MenuItem) => (
@@ -67,10 +105,48 @@ const PersonalWealthAnalyzer: React.FC = () => {
               </TouchableOpacity>
             ))}
           </ScrollView>
-        </View>
+        </Animated.View>
+
+        {/* Sidebar Toggle Button */}
+        <TouchableOpacity
+          style={[
+            styles.sidebarToggle,
+            {
+              left: isSidebarOpen ? SIDEBAR_WIDTH - 30 : 0,
+              right: isSidebarOpen ? 10 : 0,
+              transform: [
+                {
+                  translateX: sidebarWidth.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-SIDEBAR_WIDTH, 0],
+                  }),
+                },
+              ],
+              zIndex: 100,
+            },
+          ]}
+          onPress={toggleSidebar}
+        >
+          <Text style={styles.sidebarToggleText}>
+            {isSidebarOpen ? "◀ ◀" : "▶ ▶"}
+          </Text>
+        </TouchableOpacity>
 
         {/* Right Content Area */}
-        <View style={styles.contentArea}>{renderContent()}</View>
+        <Animated.View
+          style={[
+            styles.contentArea,
+            {
+              flex: 1,
+              marginLeft: sidebarWidth.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, SIDEBAR_WIDTH],
+              }),
+            },
+          ]}
+        >
+          {renderContent()}
+        </Animated.View>
       </View>
     </View>
   );

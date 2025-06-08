@@ -79,11 +79,16 @@ export const styles = StyleSheet.create({
 
   // Sidebar Styles
   sidebar: {
-    width: "30%",
     backgroundColor: "#ffffff",
     borderRightWidth: 1,
     borderRightColor: "#e2e8f0",
     paddingTop: 20,
+    height: "100%",
+    shadowColor: "#000",
+    shadowOffset: { width: 2, height: 0 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 5,
   },
   sidebarTitle: {
     fontSize: 18,
@@ -195,5 +200,29 @@ export const styles = StyleSheet.create({
     fontSize: 16,
     color: "#374151",
     lineHeight: 24,
+  },
+
+  // Sidebar Toggle Button Styles
+  sidebarToggle: {
+    position: "absolute",
+    top: "95%",
+    marginTop: -20,
+    width: 30,
+    height: 40,
+    backgroundColor: "#ffffff",
+    justifyContent: "center",
+    alignItems: "center",
+    borderTopRightRadius: 8,
+    borderBottomRightRadius: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 2, height: 0 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 5,
+    zIndex: 1000,
+  },
+  sidebarToggleText: {
+    color: "#1e293b",
+    fontSize: 16,
   },
 });

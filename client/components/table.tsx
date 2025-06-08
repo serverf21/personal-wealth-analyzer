@@ -1,29 +1,42 @@
 import React from "react";
 import { StyleSheet, View, ScrollView } from "react-native";
-import { Table, TableWrapper, Row } from "react-native-table-component";
+import { Table, Row } from "react-native-table-component";
 
-const GenericTable: React.FC = () => {
-  const tableHead = [
-    "Head",
-    "Head2",
-    "Head3",
-    "Head4",
-    "Head5",
-    "Head6",
-    "Head7",
-    "Head8",
-    "Head9",
-  ];
-  const widthArr = new Array(tableHead.length).fill(100);
+interface GenericTableProps {
+  data: string;
+}
 
-  const tableData: string[][] = [];
-  for (let i = 0; i < 30; i += 1) {
-    const rowData: string[] = [];
-    for (let j = 0; j < 9; j += 1) {
-      rowData.push(`${i}${j}`);
+const GenericTable: React.FC<GenericTableProps> = ({ data }) => {
+  // Parse the JSON string to get the actual data
+  const parsedData = React.useMemo(() => {
+    try {
+      return JSON.parse(data);
+    } catch (error) {
+      console.error("Failed to parse table data:", error);
+      return [];
     }
-    tableData.push(rowData);
-  }
+  }, [data]);
+
+  // Get headers from the first row if available
+  const tableHead = React.useMemo(() => {
+    return parsedData[0] || [];
+  }, [parsedData]);
+
+  const widthArr = React.useMemo(() => {
+    const baseWidths = new Array(tableHead.length).fill(100);
+    const particularsIndex = tableHead.findIndex(
+      (header: string) => header === "Particulars"
+    );
+    if (particularsIndex !== -1) {
+      baseWidths[particularsIndex] = 200;
+    }
+    return baseWidths;
+  }, [tableHead]);
+
+  // Use the rest of the rows as table data
+  const tableData = React.useMemo(() => {
+    return parsedData.slice(1) || [];
+  }, [parsedData]);
 
   return (
     <View style={styles.container}>
@@ -64,7 +77,7 @@ const styles = StyleSheet.create({
   header: { height: 50, backgroundColor: "#537791" },
   text: { textAlign: "center", fontWeight: "100" },
   dataWrapper: { marginTop: -1 },
-  row: { height: 40, backgroundColor: "#E7E6E1" },
+  row: { height: 60, backgroundColor: "#E7E6E1" },
 });
 
 export default GenericTable;

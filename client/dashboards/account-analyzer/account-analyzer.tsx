@@ -33,7 +33,6 @@ const AccountAnalyzer: React.FC = () => {
           type: file.mimeType || "application/pdf",
         } as any);
       }
-      console.log("FormData:", formData, file);
 
       const response: any = await fetch("http://0.0.0.0:8000/upload-pdf", {
         method: "POST",
@@ -108,8 +107,8 @@ const AccountAnalyzer: React.FC = () => {
           <View style={styles.resultContainer}>
             {activeTab === "tabulated" ? (
               <>
-                <GenericTable />
-                <Text style={styles.resultText}>{resultText}</Text>
+                <GenericTable data={resultText} />
+                {/* <Text style={styles.resultText}>{resultText}</Text> */}
               </>
             ) : (
               <Text style={styles.resultText}>Analysis coming soon...</Text>
