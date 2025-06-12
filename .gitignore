@@ -9,6 +9,7 @@ server/venv/
 
 # Python cache files
 server/__pycache__/
+*__pycache__/
 
 # Build artifacts
 dist/
@@ -22,7 +23,7 @@ build/
 *.log
 
 # Environment files
-.env
+*.env
 
 # Temporary files
 *.tmp

@@ -3,13 +3,15 @@ import { View, Text, TouchableOpacity } from "react-native";
 import { styles } from "../../styles";
 import { Platform } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
-import GenericTable from "../../components/table";
+import GenericTable from "../../components/account-statement-table";
+import { SpendingCharts } from "../../components/spendings-charts";
+import { AiAccountAnalysis } from "../../components/ai-analysis";
+
+type TabType = "tabulated" | "charts" | "analysis";
 
 const AccountAnalyzer: React.FC = () => {
   const [resultText, setResultText] = React.useState<string>("");
-  const [activeTab, setActiveTab] = React.useState<"tabulated" | "analysis">(
-    "tabulated"
-  );
+  const [activeTab, setActiveTab] = React.useState<TabType>("tabulated");
 
   const pickDocument = async () => {
     const res = await DocumentPicker.getDocumentAsync({
@@ -44,6 +46,52 @@ const AccountAnalyzer: React.FC = () => {
     }
   };
 
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case "tabulated":
+        return <GenericTable data={resultText} />;
+      case "charts":
+        return <SpendingCharts tables={JSON.parse(resultText)} />;
+      case "analysis":
+        return (
+          <Text style={styles.resultText}>
+            <AiAccountAnalysis tables={JSON.parse(resultText)} />
+          </Text>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const TabButton: React.FC<{
+    title: string;
+    tabKey: TabType;
+  }> = ({ title, tabKey }) => (
+    <TouchableOpacity
+      style={{
+        flex: 1,
+        padding: 10,
+        backgroundColor: activeTab === tabKey ? "#e0e0e0" : "#fff",
+        borderWidth: 1,
+        borderColor: "#ccc",
+        ...(tabKey === "tabulated"
+          ? {
+              borderTopLeftRadius: 8,
+              borderBottomLeftRadius: 8,
+            }
+          : tabKey === "analysis"
+          ? {
+              borderTopRightRadius: 8,
+              borderBottomRightRadius: 8,
+            }
+          : {}),
+      }}
+      onPress={() => setActiveTab(tabKey)}
+    >
+      <Text style={{ textAlign: "center", fontWeight: "bold" }}>{title}</Text>
+    </TouchableOpacity>
+  );
+
   return (
     <View style={styles.contentContainer}>
       <Text style={styles.contentTitle}>Account Statement Analyzer</Text>
@@ -61,59 +109,19 @@ const AccountAnalyzer: React.FC = () => {
           style={
             !resultText ? styles.primaryButtonText : styles.secondaryButtonText
           }
-          onPress={pickDocument}
         >
           📄 Upload PDF Statement
         </Text>
       </TouchableOpacity>
 
-      {/* Tab group */}
       {resultText ? (
         <View style={{ marginTop: 20 }}>
           <View style={{ flexDirection: "row", marginBottom: 10 }}>
-            <TouchableOpacity
-              style={{
-                flex: 1,
-                padding: 10,
-                backgroundColor: activeTab === "tabulated" ? "#e0e0e0" : "#fff",
-                borderTopLeftRadius: 8,
-                borderBottomLeftRadius: 8,
-                borderWidth: 1,
-                borderColor: "#ccc",
-              }}
-              onPress={() => setActiveTab("tabulated")}
-            >
-              <Text style={{ textAlign: "center", fontWeight: "bold" }}>
-                Tabulated View
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={{
-                flex: 1,
-                padding: 10,
-                backgroundColor: activeTab === "analysis" ? "#e0e0e0" : "#fff",
-                borderTopRightRadius: 8,
-                borderBottomRightRadius: 8,
-                borderWidth: 1,
-                borderColor: "#ccc",
-              }}
-              onPress={() => setActiveTab("analysis")}
-            >
-              <Text style={{ textAlign: "center", fontWeight: "bold" }}>
-                Analysis
-              </Text>
-            </TouchableOpacity>
+            <TabButton title="Tabulated View" tabKey="tabulated" />
+            <TabButton title="Spending Charts" tabKey="charts" />
+            <TabButton title="AI Insights" tabKey="analysis" />
           </View>
-          <View style={styles.resultContainer}>
-            {activeTab === "tabulated" ? (
-              <>
-                <GenericTable data={resultText} />
-                {/* <Text style={styles.resultText}>{resultText}</Text> */}
-              </>
-            ) : (
-              <Text style={styles.resultText}>Analysis coming soon...</Text>
-            )}
-          </View>
+          <View style={styles.resultContainer}>{renderTabContent()}</View>
         </View>
       ) : null}
     </View>

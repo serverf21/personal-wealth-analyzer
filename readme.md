@@ -7,6 +7,14 @@ An AI-powered personal finance platform that analyzes your spending patterns, op
 - python3 -m venv venv
 - source venv/bin/activate
 - uvicorn main:app --reload --host 0.0.0.0 --port 8000
+- create .env inside server. Format -
+
+```
+OPENAI_API_KEY=YOUR_OPEN_AI_KEY
+DEBUG=True
+API_HOST=0.0.0.0
+API_PORT=8000
+```
 
 ## To host the client -
 
