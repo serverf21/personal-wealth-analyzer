@@ -18,7 +18,9 @@ API_PORT=8000
 
 ## To host the client -
 
-npm run start
+- cd client
+- npm run install
+- npm run start
 
 # Features to be integrated
 
