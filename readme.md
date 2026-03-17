@@ -4,10 +4,13 @@ An AI-powered personal finance platform that analyzes your spending patterns, op
 
 ## To host the server -
 
+- cd server
 - python3 -m venv venv
 - source venv/bin/activate
-- uvicorn main:app --reload --host 0.0.0.0 --port 8000
-- create .env inside server. Format -
+- `pip install -r requirements.txt` (the `-r` reads the file; without it pip looks for a package named "requirements")
+- (If you use Anaconda, run `conda deactivate` first so the app uses the venv’s packages.)
+- Run the app with the venv’s Python so the reloader uses it: **python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000**
+- Create `.env` inside `server`. Format -
 
 ```
 OPENAI_API_KEY=YOUR_OPEN_AI_KEY

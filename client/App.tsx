@@ -10,6 +10,7 @@ import { styles } from "./styles";
 import { MenuItem, menuItems } from "./constants";
 import { DashboardId } from "./types/types";
 import AccountAnalyzer from "./dashboards/account-analyzer/account-analyzer";
+import MFAnalyzer from "./dashboards/mf-analyzer/mf-analyzer";
 import Header from "./dashboards/header/header";
 
 const SIDEBAR_WIDTH = 300;
@@ -40,6 +41,8 @@ const PersonalWealthAnalyzer: React.FC = () => {
     switch (selectedDashboard) {
       case "account-analyzer":
         return <AccountAnalyzer />;
+      case "investment-analyzer":
+        return <MFAnalyzer />;
 
       default:
         return (

@@ -6,7 +6,7 @@ export interface MenuItem {
 
 export const menuItems: MenuItem[] = [
     { id: 'account-analyzer', title: 'Account Statement Analyzer', icon: '📊' },
-    { id: 'investment-analyzer', title: 'Investment Analyzer', icon: '💹' },
+    { id: 'investment-analyzer', title: 'MF Analyzer', icon: '💹' },
     { id: 'budget-tracker', title: 'Budget Tracker', icon: '💰' },
     { id: 'goal-planner', title: 'Goal Planner', icon: '🎯' },
     { id: 'debt-manager', title: 'Debt Manager', icon: '💳' },

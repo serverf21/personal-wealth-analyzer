@@ -9,9 +9,40 @@ import { AiAccountAnalysis } from "../../components/ai-analysis";
 
 type TabType = "tabulated" | "charts" | "analysis";
 
+const SESSION_STORAGE_KEY = "account-analyzer-statement";
+
+function getStoredStatement(): string {
+  if (typeof sessionStorage === "undefined") return "";
+  try {
+    return sessionStorage.getItem(SESSION_STORAGE_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function setStoredStatement(value: string): void {
+  if (typeof sessionStorage === "undefined") return;
+  try {
+    if (value) {
+      sessionStorage.setItem(SESSION_STORAGE_KEY, value);
+    } else {
+      sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    }
+  } catch {
+    // ignore
+  }
+}
+
 const AccountAnalyzer: React.FC = () => {
-  const [resultText, setResultText] = React.useState<string>("");
+  const [resultText, setResultText] = React.useState<string>(() =>
+    getStoredStatement(),
+  );
   const [activeTab, setActiveTab] = React.useState<TabType>("tabulated");
+
+  const updateResultText = React.useCallback((value: string) => {
+    setResultText(value);
+    setStoredStatement(value);
+  }, []);
 
   const pickDocument = async () => {
     const res = await DocumentPicker.getDocumentAsync({
@@ -42,7 +73,7 @@ const AccountAnalyzer: React.FC = () => {
       });
 
       const data = await response.json();
-      setResultText(JSON.stringify(data.tables, null, 2));
+      updateResultText(JSON.stringify(data.tables, null, 2));
     }
   };
 
@@ -80,11 +111,11 @@ const AccountAnalyzer: React.FC = () => {
               borderBottomLeftRadius: 8,
             }
           : tabKey === "analysis"
-          ? {
-              borderTopRightRadius: 8,
-              borderBottomRightRadius: 8,
-            }
-          : {}),
+            ? {
+                borderTopRightRadius: 8,
+                borderBottomRightRadius: 8,
+              }
+            : {}),
       }}
       onPress={() => setActiveTab(tabKey)}
     >

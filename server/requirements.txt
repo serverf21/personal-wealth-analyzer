@@ -3,5 +3,6 @@ uvicorn
 pdfplumber
 python-multipart
 sqlalchemy
-openai
+openai>=1.0.0
 python-dotenv
+openpyxl
