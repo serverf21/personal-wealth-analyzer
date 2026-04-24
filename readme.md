@@ -25,6 +25,17 @@ API_PORT=8000
 - npm run install
 - npm run start
 
+## Implemented dashboards (overview)
+
+| Dashboard | What it does |
+|-----------|----------------|
+| **Account Statement Analyzer** | Upload bank PDF → tabulated data, spending charts, AI transaction insights (`OPENAI_API_KEY` required for AI). |
+| **MF Analyzer** | Upload mutual fund holdings Excel → allocation & concentration; **Manual** charts vs **AI** report and chat. |
+| **Stock Market Analysis** | Upload equity holdings Excel → Yahoo-backed enrichment; **Manual** view vs **AI** report and chat. |
+| **Wealth Distribution** | Enter **approx net worth**, optional **annual recurring income**, **upcoming expenses** (₹ Lakh) with **6- or 12-month** horizon, optional notes → **Manual** ideal split (₹ + %) for six segments from reference bands; **AI** suggests funding upcoming spends / boosting a bucket by shifting from other segments (with safety ordering). |
+
+Flow diagrams for each screen (including placeholders) live in **`Flowchart.md`**.
+
 # Features to be integrated
 
 ## Core Financial Management Components:

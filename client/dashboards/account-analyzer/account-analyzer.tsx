@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity } from "react-native";
 import { styles } from "../../styles";
 import { Platform } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
+import { API_BASE } from "../../constants/api";
 import GenericTable from "../../components/account-statement-table";
 import { SpendingCharts } from "../../components/spendings-charts";
 import { AiAccountAnalysis } from "../../components/ai-analysis";
@@ -67,7 +68,7 @@ const AccountAnalyzer: React.FC = () => {
         } as any);
       }
 
-      const response: any = await fetch("http://0.0.0.0:8000/upload-pdf", {
+      const response: any = await fetch(`${API_BASE}/upload-pdf`, {
         method: "POST",
         body: formData,
       });

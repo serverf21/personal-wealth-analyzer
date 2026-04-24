@@ -1,7 +1,16 @@
 import React from "react";
-import { View, Text, TouchableOpacity, Platform } from "react-native";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  Platform,
+  TextInput,
+  ScrollView,
+} from "react-native";
 import * as DocumentPicker from "expo-document-picker";
+import { API_BASE } from "../../constants/api";
 import { styles } from "../../styles";
+import { parseAiJsonPayload } from "../../utils/parseAiJson";
 import {
   ResponsiveContainer,
   PieChart,
@@ -17,6 +26,8 @@ import {
 type TabType = "manual" | "ai";
 
 const SESSION_STORAGE_KEY = "mf-analyzer-holdings-v1";
+const AI_REPORT_STORAGE_KEY = "mf-analyzer-ai-report-v1";
+const AI_CHAT_STORAGE_KEY = "mf-analyzer-ai-chat-v1";
 
 function readSession(): string {
   if (typeof sessionStorage === "undefined") return "";
@@ -32,6 +43,25 @@ function writeSession(value: string): void {
   try {
     if (value) sessionStorage.setItem(SESSION_STORAGE_KEY, value);
     else sessionStorage.removeItem(SESSION_STORAGE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+function readString(key: string): string {
+  if (typeof sessionStorage === "undefined") return "";
+  try {
+    return sessionStorage.getItem(key) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function writeString(key: string, value: string): void {
+  if (typeof sessionStorage === "undefined") return;
+  try {
+    if (value) sessionStorage.setItem(key, value);
+    else sessionStorage.removeItem(key);
   } catch {
     // ignore
   }
@@ -63,15 +93,45 @@ const COLORS = [
   "#a855f7",
 ];
 
+function isMfAiReport(o: Record<string, unknown> | null): boolean {
+  if (!o) return false;
+  const riskOk =
+    o.risk_profile === "low" || o.risk_profile === "moderate" || o.risk_profile === "high";
+  return (
+    riskOk ||
+    Array.isArray(o.key_findings) ||
+    Array.isArray(o.concentration_flags) ||
+    Array.isArray(o.overlap_signals) ||
+    Array.isArray(o.recommendations) ||
+    typeof o.disclaimer === "string"
+  );
+}
+
 const MFAnalyzer: React.FC = () => {
   const [activeTab, setActiveTab] = React.useState<TabType>("manual");
   const [resultText, setResultText] = React.useState<string>(() =>
     readSession(),
   );
+  const [aiReportText, setAiReportText] = React.useState<string>(() =>
+    readString(AI_REPORT_STORAGE_KEY),
+  );
+  const [aiLoading, setAiLoading] = React.useState(false);
+  const [aiError, setAiError] = React.useState<string>("");
+
+  const [chatMessagesText, setChatMessagesText] = React.useState<string>(() =>
+    readString(AI_CHAT_STORAGE_KEY),
+  );
+  const [chatInput, setChatInput] = React.useState<string>("");
+  const [chatLoading, setChatLoading] = React.useState(false);
 
   const updateResultText = React.useCallback((value: string) => {
     setResultText(value);
     writeSession(value);
+  }, []);
+
+  const updateAiReport = React.useCallback((value: string) => {
+    setAiReportText(value);
+    writeString(AI_REPORT_STORAGE_KEY, value);
   }, []);
 
   const parsed = React.useMemo(() => {
@@ -82,6 +142,27 @@ const MFAnalyzer: React.FC = () => {
       return null;
     }
   }, [resultText]);
+
+  const chatMessages = React.useMemo(() => {
+    if (!chatMessagesText) return [];
+    try {
+      const v = JSON.parse(chatMessagesText);
+      return Array.isArray(v) ? v : [];
+    } catch {
+      return [];
+    }
+  }, [chatMessagesText]);
+
+  const setChatMessages = React.useCallback((msgs: any[]) => {
+    const v = JSON.stringify(msgs);
+    setChatMessagesText(v);
+    writeString(AI_CHAT_STORAGE_KEY, v);
+  }, []);
+
+  const aiParsed = React.useMemo(() => {
+    if (!aiReportText) return null;
+    return parseAiJsonPayload(aiReportText);
+  }, [aiReportText]);
 
   const pickDocument = async () => {
     const res = await DocumentPicker.getDocumentAsync({
@@ -108,7 +189,7 @@ const MFAnalyzer: React.FC = () => {
       }
 
       const response: any = await fetch(
-        "http://0.0.0.0:8000/upload-mf-holdings-excel",
+        `${API_BASE}/upload-mf-holdings-excel`,
         {
           method: "POST",
           body: formData,
@@ -117,6 +198,10 @@ const MFAnalyzer: React.FC = () => {
 
       const data = await response.json();
       updateResultText(JSON.stringify(data, null, 2));
+
+      updateAiReport("");
+      setAiError("");
+      setChatMessages([]);
     }
   };
 
@@ -302,9 +387,299 @@ const MFAnalyzer: React.FC = () => {
 
   const AITab = () => (
     <View>
-      <Text style={{ fontSize: 16, color: "#64748b" }}>
-        AI Analysis will be integrated later (no Ask AI in this MVP).
-      </Text>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+        <TouchableOpacity
+          style={styles.secondaryButton}
+          onPress={async () => {
+            if (!parsed) return;
+            setAiLoading(true);
+            setAiError("");
+            try {
+              const resp: any = await fetch(`${API_BASE}/analyze-mf-ai`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ mf_payload: parsed }),
+              });
+              const data = await resp.json();
+              const structured = data?.report?.data;
+              const raw = data?.report?.raw ?? "";
+              if (structured) {
+                updateAiReport(JSON.stringify(structured, null, 2));
+              } else {
+                updateAiReport(raw);
+              }
+            } catch (e: any) {
+              setAiError(e?.message ?? "Failed to generate AI report.");
+            } finally {
+              setAiLoading(false);
+            }
+          }}
+        >
+          <Text style={styles.secondaryButtonText}>
+            {aiLoading ? "Generating..." : "Generate AI Insights"}
+          </Text>
+        </TouchableOpacity>
+
+        {aiError ? (
+          <Text style={{ color: "#ef4444", flex: 1 }}>{aiError}</Text>
+        ) : null}
+      </View>
+
+      {aiReportText ? (
+        <View style={{ marginTop: 14 }}>
+          <Text style={{ fontSize: 18, fontWeight: "700", marginBottom: 8 }}>
+            AI Report
+          </Text>
+          <View
+            style={{
+              padding: 12,
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: "#e2e8f0",
+              backgroundColor: "#ffffff",
+            }}
+          >
+            {aiParsed && isMfAiReport(aiParsed) ? (
+              <View>
+                {typeof aiParsed.risk_profile === "string" ? (
+                  <View style={{ marginBottom: 10 }}>
+                    <Text style={{ color: "#64748b", fontSize: 12 }}>
+                      Risk profile
+                    </Text>
+                    <Text style={{ color: "#0f172a", fontSize: 18, fontWeight: "700" }}>
+                      {String(aiParsed.risk_profile).toUpperCase()}
+                    </Text>
+                  </View>
+                ) : null}
+
+                {Array.isArray(aiParsed.key_findings) && aiParsed.key_findings.length > 0 ? (
+                  <View style={{ marginBottom: 12 }}>
+                    <Text style={{ fontWeight: "700", marginBottom: 6 }}>
+                      Key findings
+                    </Text>
+                    {(aiParsed.key_findings as unknown[]).slice(0, 12).map((x, i) => (
+                      <Text key={i} style={{ color: "#0f172a", lineHeight: 20, marginTop: 2 }}>
+                        • {String(x)}
+                      </Text>
+                    ))}
+                  </View>
+                ) : null}
+
+                {Array.isArray(aiParsed.concentration_flags) &&
+                aiParsed.concentration_flags.length > 0 ? (
+                  <View style={{ marginBottom: 12 }}>
+                    <Text style={{ fontWeight: "700", marginBottom: 6 }}>
+                      Concentration flags
+                    </Text>
+                    {(aiParsed.concentration_flags as any[]).slice(0, 10).map((f, i) => (
+                      <View
+                        key={i}
+                        style={{
+                          padding: 10,
+                          borderRadius: 10,
+                          borderWidth: 1,
+                          borderColor: "#fee2e2",
+                          backgroundColor: "#fef2f2",
+                          marginBottom: 8,
+                        }}
+                      >
+                        <Text style={{ fontWeight: "700", color: "#7f1d1d" }}>
+                          {String(f?.title ?? "Flag")}
+                        </Text>
+                        {f?.evidence ? (
+                          <Text style={{ color: "#991b1b", marginTop: 4, lineHeight: 20 }}>
+                            Evidence: {String(f.evidence)}
+                          </Text>
+                        ) : null}
+                        {f?.impact ? (
+                          <Text style={{ color: "#7f1d1d", marginTop: 4, lineHeight: 20 }}>
+                            Impact: {String(f.impact)}
+                          </Text>
+                        ) : null}
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+
+                {Array.isArray(aiParsed.overlap_signals) && aiParsed.overlap_signals.length > 0 ? (
+                  <View style={{ marginBottom: 12 }}>
+                    <Text style={{ fontWeight: "700", marginBottom: 6 }}>
+                      Overlap signals
+                    </Text>
+                    {(aiParsed.overlap_signals as any[]).slice(0, 10).map((s, i) => (
+                      <View
+                        key={i}
+                        style={{
+                          padding: 10,
+                          borderRadius: 10,
+                          borderWidth: 1,
+                          borderColor: "#fde68a",
+                          backgroundColor: "#fffbeb",
+                          marginBottom: 8,
+                        }}
+                      >
+                        <Text style={{ fontWeight: "700", color: "#78350f" }}>
+                          {String(s?.title ?? "Signal")}
+                        </Text>
+                        {s?.evidence ? (
+                          <Text style={{ color: "#92400e", marginTop: 4, lineHeight: 20 }}>
+                            Evidence: {String(s.evidence)}
+                          </Text>
+                        ) : null}
+                        {s?.action ? (
+                          <Text style={{ color: "#78350f", marginTop: 4, lineHeight: 20 }}>
+                            Action: {String(s.action)}
+                          </Text>
+                        ) : null}
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+
+                {Array.isArray(aiParsed.recommendations) && aiParsed.recommendations.length > 0 ? (
+                  <View style={{ marginBottom: 12 }}>
+                    <Text style={{ fontWeight: "700", marginBottom: 6 }}>
+                      Recommendations
+                    </Text>
+                    {(aiParsed.recommendations as any[]).slice(0, 12).map((r, i) => (
+                      <View
+                        key={i}
+                        style={{
+                          padding: 10,
+                          borderRadius: 10,
+                          borderWidth: 1,
+                          borderColor: "#dbeafe",
+                          backgroundColor: "#eff6ff",
+                          marginBottom: 8,
+                        }}
+                      >
+                        <Text style={{ fontWeight: "700", color: "#1e3a8a" }}>
+                          {String(r?.title ?? "Recommendation")}
+                        </Text>
+                        {r?.why ? (
+                          <Text style={{ color: "#1d4ed8", marginTop: 4, lineHeight: 20 }}>
+                            Why: {String(r.why)}
+                          </Text>
+                        ) : null}
+                        {r?.how ? (
+                          <Text style={{ color: "#1e3a8a", marginTop: 4, lineHeight: 20 }}>
+                            How: {String(r.how)}
+                          </Text>
+                        ) : null}
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+
+                {typeof aiParsed.disclaimer === "string" && aiParsed.disclaimer.trim() ? (
+                  <Text style={{ color: "#94a3b8", fontSize: 12, lineHeight: 18 }}>
+                    {aiParsed.disclaimer}
+                  </Text>
+                ) : null}
+              </View>
+            ) : (
+              <Text style={{ color: "#0f172a", lineHeight: 22 }}>
+                {aiReportText}
+              </Text>
+            )}
+          </View>
+        </View>
+      ) : null}
+
+      <View style={{ marginTop: 18 }}>
+        <Text style={{ fontSize: 18, fontWeight: "700", marginBottom: 8 }}>
+          Ask AI
+        </Text>
+
+        <View
+          style={{
+            borderWidth: 1,
+            borderColor: "#e2e8f0",
+            borderRadius: 12,
+            backgroundColor: "#ffffff",
+            padding: 10,
+            height: 260,
+          }}
+        >
+          <ScrollView>
+            {chatMessages.length === 0 ? (
+              <Text style={{ color: "#64748b" }}>
+                Ask questions like “Is my portfolio too risky?” or “Where am I
+                over-concentrated?”
+              </Text>
+            ) : null}
+            {chatMessages.map((m: any, idx: number) => (
+              <View key={idx} style={{ marginBottom: 10 }}>
+                <Text style={{ fontWeight: "700", color: "#1e293b" }}>
+                  {m.role === "user" ? "You" : "AI"}
+                </Text>
+                <Text style={{ color: "#0f172a", lineHeight: 20 }}>
+                  {m.content}
+                </Text>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+
+        <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
+          <TextInput
+            value={chatInput}
+            onChangeText={setChatInput}
+            placeholder="Type your question..."
+            style={{
+              flex: 1,
+              borderWidth: 1,
+              borderColor: "#e2e8f0",
+              borderRadius: 10,
+              paddingHorizontal: 12,
+              paddingVertical: 10,
+              backgroundColor: "#ffffff",
+            }}
+          />
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={async () => {
+              if (!parsed) return;
+              const q = chatInput.trim();
+              if (!q) return;
+
+              setChatLoading(true);
+              setAiError("");
+              setChatInput("");
+
+              const nextMessages = [...chatMessages, { role: "user", content: q }];
+              setChatMessages(nextMessages);
+
+              try {
+                const resp: any = await fetch(`${API_BASE}/ask-mf-ai`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    mf_payload: parsed,
+                    question: q,
+                    history: nextMessages,
+                  }),
+                });
+                const data = await resp.json();
+                const answer = data?.answer ?? "No answer returned.";
+                setChatMessages([
+                  ...nextMessages,
+                  { role: "assistant", content: answer },
+                ]);
+              } catch (e: any) {
+                setAiError(e?.message ?? "Failed to ask AI.");
+              } finally {
+                setChatLoading(false);
+              }
+            }}
+            disabled={chatLoading}
+          >
+            <Text style={styles.secondaryButtonText}>
+              {chatLoading ? "Sending..." : "Send"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
     </View>
   );
 

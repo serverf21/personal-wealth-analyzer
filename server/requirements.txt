@@ -6,3 +6,7 @@ sqlalchemy
 openai>=1.0.0
 python-dotenv
 openpyxl
+yfinance>=0.2.40
+pandas>=2.0.0
+casparser[fast]>=0.8.0
+httpx>=0.27.0

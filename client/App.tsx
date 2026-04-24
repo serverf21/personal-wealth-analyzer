@@ -11,6 +11,9 @@ import { MenuItem, menuItems } from "./constants";
 import { DashboardId } from "./types/types";
 import AccountAnalyzer from "./dashboards/account-analyzer/account-analyzer";
 import MFAnalyzer from "./dashboards/mf-analyzer/mf-analyzer";
+import StockAnalyzer from "./dashboards/stock-analyzer/stock-analyzer";
+import WealthDistribution from "./dashboards/wealth-distribution/wealth-distribution";
+import CasImport from "./dashboards/cas-import/cas-import";
 import Header from "./dashboards/header/header";
 
 const SIDEBAR_WIDTH = 300;
@@ -43,6 +46,12 @@ const PersonalWealthAnalyzer: React.FC = () => {
         return <AccountAnalyzer />;
       case "investment-analyzer":
         return <MFAnalyzer />;
+      case "stock-market-analysis":
+        return <StockAnalyzer />;
+      case "wealth-distribution":
+        return <WealthDistribution />;
+      case "cas-import":
+        return <CasImport />;
 
       default:
         return (

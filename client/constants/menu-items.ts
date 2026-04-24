@@ -10,7 +10,9 @@ export const menuItems: MenuItem[] = [
     { id: 'budget-tracker', title: 'Budget Tracker', icon: '💰' },
     { id: 'goal-planner', title: 'Goal Planner', icon: '🎯' },
     { id: 'debt-manager', title: 'Debt Manager', icon: '💳' },
-    { id: 'stock-ticker', title: 'Stock Ticker', icon: '📈' },
+    { id: 'stock-market-analysis', title: 'Stock Market Analysis', icon: '📈' },
+    { id: 'cas-import', title: 'CAS / Demat import', icon: '📑' },
+    { id: 'wealth-distribution', title: 'Wealth Distribution', icon: '⚖️' },
     { id: 'cash-flow', title: 'Cash Flow', icon: '💸' },
     { id: 'tax-optimizer', title: 'Tax Optimizer', icon: '📋' },
   ];
