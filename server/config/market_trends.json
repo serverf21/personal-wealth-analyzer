@@ -1,0 +1,12 @@
+{
+  "vertical_trends": {
+    "ai": 92,
+    "healthcare": 78,
+    "stock_market": 70,
+    "saas": 75
+  },
+  "regime": "sideways",
+  "index_return_3m": 0.04,
+  "volatility_pct": 14,
+  "hiring_demand_index": 65
+}

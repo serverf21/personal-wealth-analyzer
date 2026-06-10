@@ -13,6 +13,7 @@ import AccountAnalyzer from "./dashboards/account-analyzer/account-analyzer";
 import MFAnalyzer from "./dashboards/mf-analyzer/mf-analyzer";
 import StockAnalyzer from "./dashboards/stock-analyzer/stock-analyzer";
 import WealthDistribution from "./dashboards/wealth-distribution/wealth-distribution";
+import NorthStar from "./dashboards/north-star/north-star";
 import CasImport from "./dashboards/cas-import/cas-import";
 import Header from "./dashboards/header/header";
 
@@ -50,6 +51,8 @@ const PersonalWealthAnalyzer: React.FC = () => {
         return <StockAnalyzer />;
       case "wealth-distribution":
         return <WealthDistribution />;
+      case "north-star":
+        return <NorthStar />;
       case "cas-import":
         return <CasImport />;
 

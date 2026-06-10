@@ -40,6 +40,7 @@ CAS_PARSER_API_KEY=YOUR_CAS_PARSER_API_KEY
 | **Stock Market Analysis** | Upload equity holdings Excel → optional Yahoo-backed enrichment; **Manual** view vs **AI** report + chat. |
 | **CAS / Demat import** | Upload India Consolidated Account Statement (CAMS/KFintech/CDSL eCAS/NSDL eCAS) PDF → server-side parsing into normalized holdings + totals by asset class. |
 | **Wealth Distribution** | Enter **approx net worth**, optional **annual recurring income**, **upcoming expenses** (₹ Lakh) with **6- or 12-month** horizon, optional notes → **Manual** ideal split (₹ + %) for six segments from reference bands; **AI** suggests funding upcoming spends / boosting a bucket by shifting from other segments (with safety ordering). |
+| **North Star Mode** | Enter income, expenses, assets, skills → **Compute** runs Wealth Engine, Simulation (A–F), Recommendations, Startup ideas, Knowledge Graph reasoning; **AI** narrative + Ask. Stock Analyzer adds **Copilot** tab (Buy/Hold/Exit signals). |
 
 Flow diagrams also live in **`Flowchart.md`**. A compact set is included below for quick reference.
 
@@ -128,7 +129,16 @@ flowchart TD
   E -->|Ask| H[POST /ask-wealth-distribution-ai]
 ```
 
+## Design docs
+
+| Doc | Description |
+|-----|-------------|
+| [`docs/north_star.md`](docs/north_star.md) | North Star Mode — Wealth Engine, Simulation Engine, path ranking |
+| [`docs/investment_copilot.md`](docs/investment_copilot.md) | Investment Copilot — per-symbol signals (Buy/Hold/Exit), reasoning chains, APIs |
+| [`docs/market_data_ingestion.md`](docs/market_data_ingestion.md) | Market data ingestion — NSE/BSE/NYSE/NASDAQ, ETL, caching, SQLite storage |
+
 ## Backlog / future features
 
+- **North Star Mode**, **Investment Copilot** (see design docs above)
 - **Budget Tracker**, **Goal Planner**, **Debt Manager**, **Cash Flow**, **Tax Optimizer**
 - Cross-dashboard “home” summary, performance analytics, overlap analysis, India-first integrations (CAS-based imports expanded to more asset classes and actions)

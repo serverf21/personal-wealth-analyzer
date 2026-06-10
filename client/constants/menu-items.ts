@@ -10,6 +10,7 @@ export const menuItems: MenuItem[] = [
     { id: 'stock-market-analysis', title: 'Stock Market Analysis', icon: '📈' },
     { id: 'cas-import', title: 'CAS / Demat import', icon: '📑' },
     { id: 'wealth-distribution', title: 'Wealth Distribution', icon: '⚖️' },
+    { id: 'north-star', title: 'North Star Mode', icon: '⭐' },
     { id: 'cash-flow', title: 'Cash Flow', icon: '💸' },
     { id: 'tax-optimizer', title: 'Tax Optimizer', icon: '📋' },
   ];

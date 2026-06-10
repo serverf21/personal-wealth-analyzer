@@ -70,6 +70,54 @@ class WealthDistributionAskRequest(BaseModel):
     history: Optional[List[Dict[str, str]]] = None
 
 
+class NorthStarSnapshotRequest(BaseModel):
+    inputs: Dict[str, Any]
+    career_profile: Optional[Dict[str, Any]] = None
+    horizon_profile: Optional[str] = "balanced"
+    target_milestone_inr: Optional[float] = None
+    risk_tolerance: Optional[float] = None
+    user_id: Optional[str] = "default"
+
+
+class NorthStarAskRequest(BaseModel):
+    north_star_payload: Dict[str, Any]
+    question: str
+    history: Optional[List[Dict[str, str]]] = None
+
+
+class WealthComputeRequest(BaseModel):
+    inputs: Dict[str, Any]
+
+
+class StartupOpportunityRequest(BaseModel):
+    skill_profile: Dict[str, Any]
+    top_n: Optional[int] = 10
+
+
+class KnowledgeGraphQueryRequest(BaseModel):
+    template: str
+    params: Optional[Dict[str, Any]] = None
+
+
+class CopilotSymbolRequest(BaseModel):
+    symbol: str
+    market: Optional[str] = "IN"
+    horizon: Optional[str] = "medium"
+    position_context: Optional[Dict[str, Any]] = None
+
+
+class CopilotPortfolioRequest(BaseModel):
+    stock_payload: Dict[str, Any]
+    horizon: Optional[str] = "medium"
+    refresh_enrichment: Optional[bool] = False
+
+
+class CopilotAskRequest(BaseModel):
+    copilot_payload: Dict[str, Any]
+    question: str
+    history: Optional[List[Dict[str, str]]] = None
+
+
 app = FastAPI()
 
 app.add_middleware(
@@ -766,4 +814,160 @@ async def ask_wealth_distribution_ai(request: WealthDistributionAskRequest) -> D
         return answer
     except Exception as e:
         logger.error(f"Error during wealth distribution Ask AI: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- North Star Mode ---
+
+@app.post("/wealth/compute")
+async def wealth_compute(request: WealthComputeRequest) -> Dict[str, Any]:
+    try:
+        from services import wealth_engine
+        return wealth_engine.compute(request.inputs)
+    except Exception as e:
+        logger.error(f"Error in wealth compute: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/wealth/simulate")
+async def wealth_simulate(request: WealthComputeRequest) -> Dict[str, Any]:
+    try:
+        from services import wealth_engine, wealth_simulation_engine
+        metrics = wealth_engine.compute(request.inputs)
+        return wealth_simulation_engine.run_all(request.inputs, metrics)
+    except Exception as e:
+        logger.error(f"Error in wealth simulate: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/startup/opportunities")
+async def startup_opportunities(request: StartupOpportunityRequest) -> Dict[str, Any]:
+    try:
+        from services import startup_opportunity_engine
+        return startup_opportunity_engine.run(request.skill_profile, request.top_n or 10)
+    except Exception as e:
+        logger.error(f"Error in startup opportunities: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/north-star/recommend")
+async def north_star_recommend(request: NorthStarSnapshotRequest) -> Dict[str, Any]:
+    try:
+        from services import north_star_engine, recommendation_engine, wealth_engine, wealth_simulation_engine, startup_opportunity_engine
+        from services.north_star_engine import _portfolio_from_inputs, _market_conditions
+        metrics = wealth_engine.compute(request.inputs)
+        simulation = wealth_simulation_engine.run_all(request.inputs, metrics)
+        career = request.career_profile or {}
+        startups = startup_opportunity_engine.run({
+            "skills": career.get("skills", []),
+            "wealth_context": request.inputs,
+            "runway_months": metrics.get("emergency_fund_months"),
+            "risk_tolerance": request.risk_tolerance or 50,
+        })
+        ctx = {
+            "inputs": request.inputs,
+            "metrics": metrics,
+            "simulation": simulation,
+            "startup_opportunities": startups,
+            "career_profile": career,
+            "portfolio": _portfolio_from_inputs(request.inputs),
+            "market_conditions": _market_conditions(),
+        }
+        return recommendation_engine.recommend(ctx, request.horizon_profile or "balanced")
+    except Exception as e:
+        logger.error(f"Error in north star recommend: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/compute-north-star")
+async def compute_north_star(request: NorthStarSnapshotRequest) -> Dict[str, Any]:
+    try:
+        from services import north_star_engine
+        snapshot = request.model_dump()
+        return north_star_engine.compute(snapshot)
+    except Exception as e:
+        logger.error(f"Error in compute north star: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/knowledge-graph/query")
+async def knowledge_graph_query(request: KnowledgeGraphQueryRequest) -> Dict[str, Any]:
+    try:
+        from services import knowledge_graph
+        return knowledge_graph.query_graph(request.template, request.params)
+    except Exception as e:
+        logger.error(f"Error in knowledge graph query: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/knowledge-graph/snapshot")
+async def knowledge_graph_snapshot() -> Dict[str, Any]:
+    try:
+        from services import knowledge_graph
+        return knowledge_graph.get_snapshot()
+    except Exception as e:
+        logger.error(f"Error in knowledge graph snapshot: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/analyze-north-star-ai")
+async def analyze_north_star_ai(request: NorthStarAskRequest) -> Dict[str, Any]:
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=400, detail="OPENAI_API_KEY not configured")
+    model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    try:
+        from services.analyze_north_star_ai import AINorthStarAnalyzer
+        analyzer = AINorthStarAnalyzer(api_key=api_key, model=model)
+        report = await analyzer.generate_report(request.north_star_payload)
+        return {"report": report}
+    except Exception as e:
+        logger.error(f"Error during north star AI: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/ask-north-star-ai")
+async def ask_north_star_ai(request: NorthStarAskRequest) -> Dict[str, Any]:
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=400, detail="OPENAI_API_KEY not configured")
+    model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    try:
+        from services.analyze_north_star_ai import AINorthStarAnalyzer
+        analyzer = AINorthStarAnalyzer(api_key=api_key, model=model)
+        answer = await analyzer.ask(request.north_star_payload, request.question, request.history)
+        return answer
+    except Exception as e:
+        logger.error(f"Error during north star Ask AI: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- Investment Copilot ---
+
+@app.post("/copilot/analyze-symbol")
+async def copilot_analyze_symbol(request: CopilotSymbolRequest) -> Dict[str, Any]:
+    try:
+        from services import investment_copilot
+        return investment_copilot.analyze_symbol(
+            request.symbol,
+            request.market or "IN",
+            request.horizon or "medium",  # type: ignore
+            request.position_context,
+        )
+    except Exception as e:
+        logger.error(f"Error in copilot analyze symbol: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/copilot/analyze-portfolio")
+async def copilot_analyze_portfolio(request: CopilotPortfolioRequest) -> Dict[str, Any]:
+    try:
+        from services import investment_copilot
+        return investment_copilot.analyze_portfolio(
+            request.stock_payload,
+            request.horizon or "medium",  # type: ignore
+            request.refresh_enrichment or False,
+        )
+    except Exception as e:
+        logger.error(f"Error in copilot analyze portfolio: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -35,3 +35,6 @@ build/
 #testing file
 test_files/*
 client/test_files/*
+
+# Local market / graph data
+server/data/

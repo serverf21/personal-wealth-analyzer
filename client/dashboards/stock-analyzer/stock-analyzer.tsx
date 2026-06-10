@@ -24,7 +24,7 @@ import {
   CartesianGrid,
 } from "recharts";
 
-type TabType = "manual" | "ai";
+type TabType = "manual" | "copilot" | "ai";
 
 const SESSION_STORAGE_KEY = "stock-analyzer-payload-v1";
 const AI_REPORT_STORAGE_KEY = "stock-analyzer-ai-report-v1";
@@ -137,6 +137,9 @@ const StockAnalyzer: React.FC = () => {
   const [chatLoading, setChatLoading] = React.useState(false);
   const [uploadError, setUploadError] = React.useState<string>("");
   const [enriching, setEnriching] = React.useState(false);
+  const [copilotData, setCopilotData] = React.useState<Record<string, unknown> | null>(null);
+  const [copilotLoading, setCopilotLoading] = React.useState(false);
+  const [copilotError, setCopilotError] = React.useState("");
 
   const updateResultText = React.useCallback((value: string) => {
     setResultText(value);
@@ -286,13 +289,35 @@ const StockAnalyzer: React.FC = () => {
         borderColor: "#ccc",
         ...(tabKey === "manual"
           ? { borderTopLeftRadius: 8, borderBottomLeftRadius: 8 }
-          : { borderTopRightRadius: 8, borderBottomRightRadius: 8 }),
+          : {}),
+        ...(tabKey === "ai"
+          ? { borderTopRightRadius: 8, borderBottomRightRadius: 8 }
+          : {}),
       }}
       onPress={() => setActiveTab(tabKey)}
     >
       <Text style={{ textAlign: "center", fontWeight: "bold" }}>{title}</Text>
     </TouchableOpacity>
   );
+
+  const loadCopilot = async () => {
+    if (!parsed) return;
+    setCopilotLoading(true);
+    setCopilotError("");
+    try {
+      const res = await fetch(`${API_BASE}/copilot/analyze-portfolio`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stock_payload: parsed, horizon: "medium" }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setCopilotData(await res.json());
+    } catch (e: unknown) {
+      setCopilotError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCopilotLoading(false);
+    }
+  };
 
   const summary = parsed?.summary ?? {};
   const computed = parsed?.computed ?? {};
@@ -992,6 +1017,40 @@ const StockAnalyzer: React.FC = () => {
     </View>
   );
 
+  const CopilotTab = () => {
+    const signals = (copilotData?.signals ?? []) as Record<string, unknown>[];
+    const summaryCp = (copilotData?.portfolio_summary ?? {}) as Record<string, unknown>;
+    return (
+      <View>
+        <TouchableOpacity style={styles.secondaryButton} onPress={loadCopilot} disabled={copilotLoading}>
+          <Text style={styles.secondaryButtonText}>
+            {copilotLoading ? "Analyzing…" : "Run Investment Copilot"}
+          </Text>
+        </TouchableOpacity>
+        {copilotError ? <Text style={{ color: "#ef4444", marginTop: 8 }}>{copilotError}</Text> : null}
+        {copilotData ? (
+          <View style={{ marginTop: 12 }}>
+            <Text style={{ fontWeight: "700", marginBottom: 8 }}>
+              Holdings: {String(summaryCp.holdings_count ?? 0)} · Avg confidence {String(summaryCp.avg_confidence ?? "—")}
+            </Text>
+            {signals.map((s) => (
+              <View key={String(s.symbol)} style={{ marginBottom: 8, padding: 8, backgroundColor: "#f8fafc", borderRadius: 6 }}>
+                <Text style={{ fontWeight: "600" }}>
+                  {String(s.symbol)} — {String(s.signal)} ({String(s.confidence_score)}%)
+                </Text>
+                <Text style={{ fontSize: 12, color: "#555" }}>
+                  {String(((s.reasoning_chain as Record<string, unknown>)?.summary) ?? "")}
+                </Text>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <Text style={{ marginTop: 8, color: "#666" }}>Per-symbol Buy/Hold/Exit signals with reasoning chains.</Text>
+        )}
+      </View>
+    );
+  };
+
   return (
     <View style={styles.contentContainer}>
       <Text style={styles.contentTitle}>Stock market analysis</Text>
@@ -1027,11 +1086,12 @@ const StockAnalyzer: React.FC = () => {
       {parsed ? (
         <View style={{ marginTop: 20 }}>
           <View style={{ flexDirection: "row", marginBottom: 10 }}>
-            <TabButton title="Manual analysis" tabKey="manual" />
-            <TabButton title="AI-based analysis" tabKey="ai" />
+            <TabButton title="Manual" tabKey="manual" />
+            <TabButton title="Copilot" tabKey="copilot" />
+            <TabButton title="AI" tabKey="ai" />
           </View>
           <View style={styles.resultContainer}>
-            {activeTab === "manual" ? <ManualTab /> : <AITab />}
+            {activeTab === "manual" ? <ManualTab /> : activeTab === "copilot" ? <CopilotTab /> : <AITab />}
           </View>
         </View>
       ) : null}
