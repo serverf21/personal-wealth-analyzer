@@ -2,6 +2,7 @@ from typing import List, Dict, Any
 from openai import AsyncOpenAI
 from decimal import Decimal
 import asyncio
+from services.analyze_statement import _find_col, _is_sweep, _pre_filter_sweeps, BasicTransactionAnalyzer
 
 class AITransactionAnalyzer:
     def __init__(self, api_key: str):
@@ -67,23 +68,40 @@ class AITransactionAnalyzer:
             return "OTHERS", 3, "Unable to parse AI response."
 
     async def analyze_transactions(self, transactions: List[List[str]]) -> Dict[str, Any]:
-        headers = transactions[0]
-        data = transactions[1:]
+        # Use the shared flexible column finder (handles any bank format)
+        basic = BasicTransactionAnalyzer()
+        result = basic._find_header_and_cols(transactions)
+        if result is None:
+            return {"ai_analyzed_transactions": [], "summary": self.generate_summary([])}
 
-        # Find column indices
-        date_idx = headers.index("Tran Date")
-        particulars_idx = headers.index("Particulars")
-        debit_idx = headers.index("Debit")
-        credit_idx = headers.index("Credit")
+        header_idx, date_idx, part_idx, debit_idx, credit_idx, _ = result
+        raw_data = transactions[header_idx + 1:]
 
-        analyzed_transactions = []
+        # Apply the same row-level sweep pre-filter used by the basic analyzer
+        data, _ = _pre_filter_sweeps(raw_data, part_idx, date_idx, debit_idx, credit_idx)
+
+        min_cols = max(date_idx, part_idx, debit_idx, credit_idx) + 1
+
         tasks = []
         for transaction in data:
+            if len(transaction) < min_cols:
+                continue
+            raw_part = (transaction[part_idx]  or "").strip()
+            raw_db   = (transaction[debit_idx] or "").strip().replace(",", "")
+            raw_cr   = (transaction[credit_idx]or "").strip().replace(",", "")
+            raw_date = (transaction[date_idx]  or "").strip()
+
+            # Skip blank rows; second-pass sweep guard for anything pre-filter missed
+            if not (raw_date or raw_db or raw_cr):
+                continue
+            if _is_sweep(raw_part):
+                continue
+
             trans_dict = {
-                "date": transaction[date_idx],
-                "particulars": transaction[particulars_idx],
-                "amount": transaction[debit_idx] or transaction[credit_idx],
-                "type": "debit" if transaction[debit_idx] else "credit"
+                "date":        raw_date,
+                "particulars": raw_part,
+                "amount":      raw_db or raw_cr,
+                "type":        "debit" if raw_db else "credit",
             }
             tasks.append(self.analyze_transaction(trans_dict))
 

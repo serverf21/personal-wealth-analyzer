@@ -7,6 +7,7 @@ import { API_BASE } from "../../constants/api";
 import GenericTable from "../../components/account-statement-table";
 import { SpendingCharts } from "../../components/spendings-charts";
 import { AiAccountAnalysis } from "../../components/ai-analysis";
+import * as XLSX from "xlsx";
 
 type TabType = "tabulated" | "charts" | "analysis";
 
@@ -34,6 +35,33 @@ function setStoredStatement(value: string): void {
   }
 }
 
+function downloadCSV(tableData: string[][], filename = "statement.csv") {
+  const csv = tableData
+    .map((row) =>
+      row
+        .map((cell) => {
+          const escaped = String(cell ?? "").replace(/"/g, '""');
+          return /[",\n\r]/.test(escaped) ? `"${escaped}"` : escaped;
+        })
+        .join(","),
+    )
+    .join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function downloadExcel(tableData: string[][], filename = "statement.xlsx") {
+  const ws = XLSX.utils.aoa_to_sheet(tableData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Statement");
+  XLSX.writeFile(wb, filename);
+}
+
 const AccountAnalyzer: React.FC = () => {
   const [resultText, setResultText] = React.useState<string>(() =>
     getStoredStatement(),
@@ -44,6 +72,15 @@ const AccountAnalyzer: React.FC = () => {
     setResultText(value);
     setStoredStatement(value);
   }, []);
+
+  const parsedTableData = React.useMemo<string[][]>(() => {
+    if (!resultText) return [];
+    try {
+      return JSON.parse(resultText);
+    } catch {
+      return [];
+    }
+  }, [resultText]);
 
   const pickDocument = async () => {
     const res = await DocumentPicker.getDocumentAsync({
@@ -148,10 +185,60 @@ const AccountAnalyzer: React.FC = () => {
 
       {resultText ? (
         <View style={{ marginTop: 20 }}>
-          <View style={{ flexDirection: "row", marginBottom: 10 }}>
-            <TabButton title="Tabulated View" tabKey="tabulated" />
-            <TabButton title="Spending Charts" tabKey="charts" />
-            <TabButton title="AI Insights" tabKey="analysis" />
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              marginBottom: 10,
+              gap: 8,
+            }}
+          >
+            {/* Tab switcher */}
+            <View style={{ flexDirection: "row", flex: 1 }}>
+              <TabButton title="Tabulated View" tabKey="tabulated" />
+              <TabButton title="Spending Charts" tabKey="charts" />
+              <TabButton title="AI Insights" tabKey="analysis" />
+            </View>
+
+            {/* Download buttons — only shown on tabulated tab */}
+            {activeTab === "tabulated" && parsedTableData.length > 0 && (
+              <View style={{ flexDirection: "row", gap: 6 }}>
+                <TouchableOpacity
+                  onPress={() => downloadCSV(parsedTableData)}
+                  style={{
+                    paddingVertical: 8,
+                    paddingHorizontal: 14,
+                    backgroundColor: "#fff",
+                    borderWidth: 1,
+                    borderColor: "#4CAF50",
+                    borderRadius: 6,
+                  }}
+                >
+                  <Text
+                    style={{ color: "#4CAF50", fontWeight: "bold", fontSize: 13 }}
+                  >
+                    ⬇ CSV
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => downloadExcel(parsedTableData)}
+                  style={{
+                    paddingVertical: 8,
+                    paddingHorizontal: 14,
+                    backgroundColor: "#fff",
+                    borderWidth: 1,
+                    borderColor: "#1565C0",
+                    borderRadius: 6,
+                  }}
+                >
+                  <Text
+                    style={{ color: "#1565C0", fontWeight: "bold", fontSize: 13 }}
+                  >
+                    ⬇ Excel
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
           <View style={styles.resultContainer}>{renderTabContent()}</View>
         </View>

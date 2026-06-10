@@ -1,5 +1,6 @@
 ### backend/main.py
 import asyncio
+import re
 from fastapi import FastAPI, UploadFile, File, HTTPException, Body, Form
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -79,17 +80,219 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def _rows_from_tables(page_tables) -> List[List[Any]]:
+    rows: List[List[Any]] = []
+    for table in (page_tables or []):
+        rows.extend(table)
+    return rows
+
+
+def _extract_tables_from_page(page) -> List[List[Any]]:
+    """
+    Strategy priority:
+    1. "lines" — uses drawn grid lines; produces clean, well-bounded cells.
+       Used whenever it yields at least one non-empty row.
+    2. "text" — groups text by x/y proximity; catches borderless tables
+       (e.g. transaction pages without ruled lines) but may split cells.
+    Only fall back to "text" when "lines" finds nothing for the page.
+    """
+    # Primary: explicit ruled lines (clean cells, correct for display)
+    try:
+        line_tables = page.extract_tables(
+            {"vertical_strategy": "lines", "horizontal_strategy": "lines"}
+        )
+        line_rows = _rows_from_tables(line_tables)
+        # If lines strategy found substantive content, use it
+        non_empty = [r for r in line_rows if any(c for c in r if c)]
+        if non_empty:
+            return line_rows
+    except Exception:
+        pass
+
+    # Fallback: text-alignment strategy (handles borderless tables)
+    try:
+        text_tables = page.extract_tables(
+            {"vertical_strategy": "text", "horizontal_strategy": "text"}
+        )
+        return _rows_from_tables(text_tables)
+    except Exception:
+        pass
+
+    return []
+
+
+# Column name aliases reused for header detection in the upload layer
+_TRANSACTION_HEADER_ALIASES = {
+    "date":        ["tran date", "date", "transaction date", "txn date", "value date"],
+    "particulars": ["particulars", "description", "narration", "details", "transaction remarks"],
+    "amount":      [
+        "debit", "withdrawal", "withdrawal amt.", "dr amount", "debit amount",
+        "credit", "deposit", "deposit amt.", "cr amount", "credit amount",
+    ],
+}
+
+
+def _normalise_cell(s: Any) -> str:
+    return " ".join(str(s).strip().split()).lower()
+
+
+_SWEEP_SUBSTRINGS = ["sweep trf", "sweep transfer", "sweep int", "closure proceeds"]
+_FLEXI_INT_RE_MAIN = re.compile(r'\d{8,}\s+int:', re.IGNORECASE)
+
+
+def _cell_contains_sweep(cell: Any) -> bool:
+    return any(kw in str(cell).lower() for kw in _SWEEP_SUBSTRINGS)
+
+
+def _find_transaction_header_idx(rows: List[List[Any]]) -> int:
+    """
+    Return the index of the first row that looks like a transaction-table
+    header (contains date + particulars aliases). Falls back to 0 if not found.
+    """
+    for idx, row in enumerate(rows):
+        cells = [_normalise_cell(c) for c in row]
+        has_date = any(c in _TRANSACTION_HEADER_ALIASES["date"]       for c in cells)
+        has_part = any(c in _TRANSACTION_HEADER_ALIASES["particulars"] for c in cells)
+        has_amt  = any(c in _TRANSACTION_HEADER_ALIASES["amount"]      for c in cells)
+        if has_date and has_part:
+            return idx
+        if has_date and has_amt:
+            return idx
+    return 0
+
+
+def _find_particulars_col(header_row: List[Any]) -> Optional[int]:
+    """Return the index of the Particulars-like column in the header row."""
+    for i, cell in enumerate(header_row):
+        if _normalise_cell(cell) in _TRANSACTION_HEADER_ALIASES["particulars"]:
+            return i
+    return None
+
+
+_DATE_RE   = re.compile(r'\d{2}-\d{2}-\d{4}|\d{4}-\d{2}-\d{2}')
+_AMOUNT_RE = re.compile(r'^\d{1,3}(?:,\d{2,3})*\.\d{2}$')
+
+
+def _has_date_or_amount(row: List[Any]) -> bool:
+    """True if this row is a 'main' transaction row (carries date or amount)."""
+    for cell in row:
+        s = str(cell).strip()
+        if not s:
+            continue
+        if _DATE_RE.match(s) or _AMOUNT_RE.match(s):
+            return True
+    return False
+
+
+_SUMMARY_LABELS = {"summary", "summary:", "summary :", "summary:"}
+
+
+def _truncate_at_summary(rows: List[List[Any]]) -> List[List[Any]]:
+    """
+    Drop everything from the first 'Summary' row onwards.
+    Bank statements print a footer block (Total Debits / Total Credits / FD
+    scheme tables) after the last transaction row — none of that should be
+    displayed or analysed.
+    """
+    for idx, row in enumerate(rows):
+        for cell in row:
+            if str(cell).strip().lower() in _SUMMARY_LABELS:
+                return rows[:idx]
+    return rows
+
+
+def _filter_sweep_rows(rows: List[List[Any]]) -> List[List[Any]]:
+    """
+    Remove sweep transactions (and their description rows) from the flat
+    table list using a lookahead buffer.
+
+    Row layout in this bank's PDF:
+      [blank description rows]  ← precede the main row
+      [main row: date + amount]
+      [blank tail rows]         ← follow the main row (account number etc.)
+
+    We buffer blank rows and flush them onto the NEXT main row.
+    If that main row's combined particulars contain a sweep keyword, we
+    discard all its rows (buffer + main row) instead of appending them.
+    """
+    # Find the particulars column so we know where to look for sweep text
+    if not rows:
+        return rows
+    part_col = _find_particulars_col(rows[0])  # rows[0] is already the header
+
+    filtered: List[List[Any]] = [rows[0]]     # always keep the header
+    pending: List[List[Any]] = []             # buffered pre-description rows
+
+    for row in rows[1:]:
+        if _has_date_or_amount(row):
+            # Collect all particulars text seen so far (from buffer + this row)
+            parts_text = " ".join(
+                str(r[part_col]).strip()
+                for r in pending + [row]
+                if part_col is not None and part_col < len(r) and str(r[part_col]).strip()
+            ).lower()
+
+            # Normalise whitespace so "Closure\nProceeds" matches "closure proceeds"
+            parts_text = " ".join(parts_text.split())
+            is_sweep = (
+                any(kw in parts_text for kw in _SWEEP_SUBSTRINGS)
+                or bool(_FLEXI_INT_RE_MAIN.search(parts_text))
+            )
+            if is_sweep:
+                # Discard this sweep / flexi-interest transaction and its buffered rows
+                pending = []
+            else:
+                filtered.extend(pending)
+                filtered.append(row)
+                pending = []
+        else:
+            # Blank / description / tail row — buffer it
+            pending.append(row)
+
+    # Flush any trailing rows that follow the last main row
+    if pending:
+        # Check if leftover pending rows themselves are sweep-related
+        raw_parts = " ".join(
+            str(r[part_col]).strip()
+            for r in pending
+            if part_col is not None and part_col < len(r) and str(r[part_col]).strip()
+        ).lower()
+        parts_text = " ".join(raw_parts.split())  # normalise embedded newlines
+        if not any(kw in parts_text for kw in _SWEEP_SUBSTRINGS):
+            filtered.extend(pending)
+
+    return filtered
+
+
 @app.post("/upload-pdf")
 async def upload_pdf(file: UploadFile = File(...)):
-    tables = []
-    with pdfplumber.open(io.BytesIO(await file.read())) as pdf:
-        print('pages length', len(pdf.pages))
-        for i in range(len(pdf.pages)):
-            page = pdf.pages[i]
-            page_tables = page.extract_tables()
-            for table in page_tables:
-                tables.extend(table) 
-    return {"tables": tables}  # return as JSON array
+    raw = await file.read()
+    tables: List[List[Any]] = []
+    with pdfplumber.open(io.BytesIO(raw)) as pdf:
+        logger.info("PDF pages: %d", len(pdf.pages))
+        for page in pdf.pages:
+            tables.extend(_extract_tables_from_page(page))
+    logger.info("Total rows extracted from PDF: %d", len(tables))
+
+    # Trim pre-transaction header rows (bank info block)
+    start = _find_transaction_header_idx(tables)
+    if start > 0:
+        logger.info("Trimming %d pre-transaction rows (header at row %d)", start, start)
+        tables = tables[start:]
+
+    # Drop the Summary footer (Total Debits / Total Credits rows + FD tables)
+    before_summary = len(tables)
+    tables = _truncate_at_summary(tables)
+    if len(tables) < before_summary:
+        logger.info("Summary truncation removed %d footer rows (%d → %d)",
+                    before_summary - len(tables), before_summary, len(tables))
+
+    # Remove sweep / flexi-account transfer rows so they never reach the UI
+    before = len(tables)
+    tables = _filter_sweep_rows(tables)
+    logger.info("Sweep filter removed %d rows (%d → %d)", before - len(tables), before, len(tables))
+
+    return {"tables": tables}
 
 def _safe_float(value: Any) -> Optional[float]:
     if value is None:
@@ -401,7 +604,24 @@ async def analyze_basic_transactions(request: TransactionRequest) -> Dict[str, A
         basic_analyzer = BasicTransactionAnalyzer()
         basic_analysis = basic_analyzer.analyze_transactions(processed_transactions)
 
+        if "error" in basic_analysis:
+            logger.error("analyze_transactions error: %s | all rows: %s",
+                         basic_analysis["error"], processed_transactions)
+            raise HTTPException(status_code=422, detail=basic_analysis["error"])
+
+        logger.info(
+            "analyze_transactions: %d input rows → %d categorised txns "
+            "(sweep filtered: %d) | total_debits=%s total_credits=%s",
+            len(processed_transactions),
+            len(basic_analysis.get("categorized_transactions", [])),
+            basic_analysis.get("sweep_filtered_count", 0),
+            basic_analysis.get("total_debits"),
+            basic_analysis.get("total_credits"),
+        )
+
         return {"basic_analysis": basic_analysis}
+    except HTTPException:
+        raise  # let 4xx pass through unchanged
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -21,11 +21,18 @@ interface AnalysisData {
   categories: Record<string, number>;
   total_debits: number;
   total_credits: number;
+  sweep_filtered_count: number;
   categorized_transactions: Array<{
     date: string;
     particulars: string;
     amount: string;
     type: "debit" | "credit";
+    category: string;
+  }>;
+  largest_debits: Array<{
+    date: string;
+    particulars: string;
+    amount: string;
     category: string;
   }>;
 }
@@ -198,15 +205,12 @@ export const SpendingCharts: React.FC<SpendingChartsProps> = ({ tables }) => {
     const fetchAnalysis = async () => {
       if (!tables || !tables.length) return;
 
-      // Filter out completely empty rows
-      const validTransactions = tables.filter((row) =>
+      // Keep all rows (including blank-cell continuation rows) so the
+      // server's pending_parts buffer can correctly assemble multi-line
+      // transactions and detect sweeps. Only drop rows that are completely
+      // null/empty across every cell.
+      const filteredTransactions = tables.filter((row) =>
         row.some((cell) => cell !== null && cell !== "")
-      );
-
-      // Remove any rows that don't have the expected number of columns
-      const headerRow = validTransactions[0];
-      const filteredTransactions = validTransactions.filter(
-        (row) => row.length === headerRow.length
       );
 
       setLoading(true);
@@ -263,6 +267,16 @@ export const SpendingCharts: React.FC<SpendingChartsProps> = ({ tables }) => {
     return (
       <div className="p-4">
         <div className="text-center">No data available</div>
+      </div>
+    );
+  }
+
+  if (!analysisData.categories) {
+    return (
+      <div className="p-4">
+        <div className="text-center text-red-500">
+          Error: Could not parse spending categories from this statement.
+        </div>
       </div>
     );
   }
@@ -430,7 +444,7 @@ export const SpendingCharts: React.FC<SpendingChartsProps> = ({ tables }) => {
       )}
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
         <div className="bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg p-6 shadow-lg">
           <h3 className="text-lg font-semibold mb-2">Total Debits</h3>
           <p className="text-3xl font-bold">
@@ -462,6 +476,64 @@ export const SpendingCharts: React.FC<SpendingChartsProps> = ({ tables }) => {
           </p>
         </div>
       </div>
+
+      {/* Sweep filter notice */}
+      {(analysisData.sweep_filtered_count ?? 0) > 0 && (
+        <div className="mb-6 flex items-center gap-2 rounded-md border border-yellow-300 bg-yellow-50 px-4 py-2 text-sm text-yellow-800">
+          <span className="font-semibold">
+            {analysisData.sweep_filtered_count} sweep / flexi-account
+            transaction{analysisData.sweep_filtered_count === 1 ? "" : "s"}{" "}
+            excluded
+          </span>
+          — internal fund movements are not counted in debits, credits, or
+          categories.
+        </div>
+      )}
+
+      {/* Top-10 largest debits — helps verify no sweep leakage */}
+      {analysisData.largest_debits && analysisData.largest_debits.length > 0 && (
+        <div className="mt-6 mb-8">
+          <h2 className="text-xl font-bold mb-3 text-gray-800">
+            Top 10 Largest Debits
+            <span className="ml-2 text-sm font-normal text-gray-500">
+              (verify no unexpected transactions)
+            </span>
+          </h2>
+          <div className="bg-white rounded-lg shadow border border-gray-200 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Date</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Particulars</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Category</th>
+                  <th className="px-4 py-2 text-right text-xs font-semibold text-gray-600 uppercase">Amount (₹)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {analysisData.largest_debits.map((txn, i) => (
+                  <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                    <td className="px-4 py-2 whitespace-nowrap text-gray-700">{txn.date}</td>
+                    <td className="px-4 py-2 text-gray-700 max-w-xs truncate" title={txn.particulars}>
+                      {txn.particulars}
+                    </td>
+                    <td className="px-4 py-2">
+                      <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                        {txn.category}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2 text-right font-semibold text-red-600">
+                      {parseFloat(txn.amount).toLocaleString("en-IN", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Enhanced Category Breakdown Table */}
       <div className="mt-8">

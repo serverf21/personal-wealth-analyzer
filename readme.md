@@ -1,8 +1,8 @@
 # Personal Wealth Analyzer
 
-An AI-powered personal finance platform that analyzes your spending patterns, optimizes investment portfolios, and provides intelligent recommendations to maximize your wealth growth.
+An AI-powered personal finance platform that analyzes spending, investment portfolios, and wealth allocation. It provides manual dashboards plus optional AI insights (requires `OPENAI_API_KEY`).
 
-## To host the server -
+## Run the server (FastAPI)
 
 - cd server
 - python3 -m venv venv
@@ -10,7 +10,7 @@ An AI-powered personal finance platform that analyzes your spending patterns, op
 - `pip install -r requirements.txt` (the `-r` reads the file; without it pip looks for a package named "requirements")
 - (If you use Anaconda, run `conda deactivate` first so the app uses the venv’s packages.)
 - Run the app with the venv’s Python so the reloader uses it: **python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000**
-- Create `.env` inside `server`. Format -
+- Create `.env` inside `server`. Format:
 
 ```
 OPENAI_API_KEY=YOUR_OPEN_AI_KEY
@@ -19,7 +19,13 @@ API_HOST=0.0.0.0
 API_PORT=8000
 ```
 
-## To host the client -
+Optional (CAS import cloud fallback):
+
+```
+CAS_PARSER_API_KEY=YOUR_CAS_PARSER_API_KEY
+```
+
+## Run the client (Expo / React Native Web)
 
 - cd client
 - npm run install
@@ -28,40 +34,101 @@ API_PORT=8000
 ## Implemented dashboards (overview)
 
 | Dashboard | What it does |
-|-----------|----------------|
-| **Account Statement Analyzer** | Upload bank PDF → tabulated data, spending charts, AI transaction insights (`OPENAI_API_KEY` required for AI). |
-| **MF Analyzer** | Upload mutual fund holdings Excel → allocation & concentration; **Manual** charts vs **AI** report and chat. |
-| **Stock Market Analysis** | Upload equity holdings Excel → Yahoo-backed enrichment; **Manual** view vs **AI** report and chat. |
+|-----------|--------------|
+| **Account Statement Analyzer** | Upload bank PDF → tabulated data, spending charts, AI transaction insights. |
+| **MF Analyzer** | Upload MF holdings Excel → allocation & concentration; **Manual** charts vs **AI** report + chat (AI report renders as readable sections when JSON is returned). |
+| **Stock Market Analysis** | Upload equity holdings Excel → optional Yahoo-backed enrichment; **Manual** view vs **AI** report + chat. |
+| **CAS / Demat import** | Upload India Consolidated Account Statement (CAMS/KFintech/CDSL eCAS/NSDL eCAS) PDF → server-side parsing into normalized holdings + totals by asset class. |
 | **Wealth Distribution** | Enter **approx net worth**, optional **annual recurring income**, **upcoming expenses** (₹ Lakh) with **6- or 12-month** horizon, optional notes → **Manual** ideal split (₹ + %) for six segments from reference bands; **AI** suggests funding upcoming spends / boosting a bucket by shifting from other segments (with safety ordering). |
 
-Flow diagrams for each screen (including placeholders) live in **`Flowchart.md`**.
+Flow diagrams also live in **`Flowchart.md`**. A compact set is included below for quick reference.
 
-# Features to be integrated
+## Flowcharts (current)
 
-## Core Financial Management Components:
+### Shared app flow
 
-1. Account Statement Analyzer (By taking PDF statement as input and making charts, using AI to analyze the necessary purchases and cuts required)
-2. Investments Analyzer - Analyzes the net worth distribution among asset classes like equities (stocks and MFs), gold, real estate, FDs.
-3. Budget Planner & Tracker - Beyond analyzing past spending, provide tools to set monthly budgets by category, track progress in real-time, and send alerts when approaching limits. Include features for irregular expenses like insurance premiums or annual subscriptions.
-4. Cash Flow Forecasting - Project future cash flows based on historical patterns, upcoming known expenses, and income changes. This helps users understand their financial runway and plan major purchases.
-5. Debt Management Dashboard - Track all debts (credit cards, loans, mortgages), calculate payoff timelines, compare debt consolidation strategies, and optimize payment schedules using debt avalanche or snowball methods.
-6. Goal-Based Financial Planning - Allow users to set specific financial goals (emergency fund, home down payment, retirement) with target amounts and timelines. Show progress tracking and required monthly savings to meet goals.
-7. Tax Optimization Center - Analyze tax-saving opportunities, track tax-deductible expenses, suggest optimal investment timing for tax efficiency, and estimate annual tax liability.
+```mermaid
+flowchart LR
+  U[User] --> C[Client: Expo / React Native Web]
+  C -->|HTTP| S[Server: FastAPI]
+  S -->|optional| OAI[OpenAI API]
+```
 
-## Advanced Analysis Features:
+### Account Statement Analyzer
 
-8. Risk Assessment Tool - Evaluate overall portfolio risk tolerance, concentration risk across investments, and suggest rebalancing strategies.
-9. Performance Analytics - Track investment returns, benchmark against market indices, calculate risk-adjusted returns, and identify best/worst performing assets.
-10. Expense Categorization & Trends - Use AI to automatically categorize expenses, identify spending patterns, seasonal variations, and highlight unusual transactions.
-11. Net Worth Tracker - Comprehensive view of assets minus liabilities over time, with ability to manually add assets like jewelry, collectibles, or business equity.
-12. Insurance Coverage Analyzer - Assess adequacy of life, health, property insurance coverage based on current net worth and dependents.
-13. Retirement Planning Calculator - Project retirement corpus needs, analyze current savings rate adequacy, and suggest course corrections.
+```mermaid
+flowchart TD
+  A[Open dashboard] --> B[Upload bank PDF]
+  B --> C[POST /upload-pdf]
+  C --> D[Extract tables with pdfplumber]
+  D --> E[Store JSON in session]
+  E --> F{Choose tab}
+  F -->|Tabulated| G[GenericTable]
+  F -->|Charts| H[SpendingCharts]
+  F -->|AI Insights| I[POST /analyze-ai-transactions]
+  I --> J[AITransactionAnalyzer + OpenAI]
+  J --> K[Insights + recommendations]
+```
 
-## Additional Utility Components:
+### MF Analyzer
 
-14. Bill Management - Track recurring bills, predict monthly expenses, and identify subscription services that might be cancelled.
-15. Credit Score Monitoring - If possible to integrate, track credit score changes and factors affecting it.
-16. Financial News & Alerts - Personalized financial news based on user's investment portfolio and spending categories.
-17. Document Storage - Secure storage for financial documents, tax returns, insurance policies, and investment certificates.
-18. Multi-Currency Support - For users with international investments or expenses.
-    The key is to make these components work together seamlessly. For example, the budget tracker should inform the goal planner, which should connect to the investment analyzer for optimal asset allocation recommendations. Consider implementing a dashboard that provides a unified view with the most critical metrics and alerts from all components.
+```mermaid
+flowchart TD
+  A[Open MF Analyzer] --> B[Upload holdings .xlsx]
+  B --> C[POST /upload-mf-holdings-excel]
+  C --> D[Parse holdings + computed allocations]
+  D --> E[Session save]
+  E --> F{Tab}
+  F -->|Manual| G[KPI cards + charts]
+  F -->|AI| H[POST /analyze-mf-ai]
+  H --> I[AIMFAnalyzer returns JSON or text]
+  I --> J[Client parses JSON + renders readable sections]
+  F -->|Ask| K[POST /ask-mf-ai]
+```
+
+### Stock Market Analysis
+
+```mermaid
+flowchart TD
+  A[Open Stock Analysis] --> B[Upload equity .xlsx]
+  B --> C[POST /upload-stock-holdings-excel]
+  C --> D[Parse holdings quickly]
+  D --> E[Optional: enrich]
+  E --> F[POST /enrich-stock-portfolio]
+  F --> G[Parallel market data enrichment]
+  G --> H[Manual hints + charts]
+  H --> I{AI}
+  I -->|Report| J[POST /analyze-stock-ai]
+  I -->|Ask| K[POST /ask-stock-ai]
+```
+
+### CAS / Demat import
+
+```mermaid
+flowchart TD
+  A[Open CAS / Demat import] --> B[Upload CAS PDF + password]
+  B --> C[POST /parse-cas-pdf]
+  C --> D[Server parses locally via casparser]
+  D --> E[Normalize into holdings + totals by asset class]
+  C -->|Optional fallback| F[Cloud parse via api.casparser.in]
+  F --> E
+  E --> G[Client shows totals + JSON]
+```
+
+### Wealth Distribution
+
+```mermaid
+flowchart TD
+  A[Open Wealth Distribution] --> B[Enter NW + optional income + upcoming spend + horizon + notes]
+  B --> C[Compute reference split (₹ ranges) from bands]
+  C --> D[Manual alerts (short-term / emergency heuristics)]
+  D --> E{Tab}
+  E -->|Manual| F[Segments + midpoint chart]
+  E -->|AI insights| G[POST /analyze-wealth-distribution-ai]
+  E -->|Ask| H[POST /ask-wealth-distribution-ai]
+```
+
+## Backlog / future features
+
+- **Budget Tracker**, **Goal Planner**, **Debt Manager**, **Cash Flow**, **Tax Optimizer**
+- Cross-dashboard “home” summary, performance analytics, overlap analysis, India-first integrations (CAS-based imports expanded to more asset classes and actions)
